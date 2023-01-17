@@ -85,3 +85,91 @@ def load_jmara(year='2005',month='10',day='21',hour='00',mimute='00'):
     print(err.code)
   except urllib.error.URLError as err:
     print(err.reason)
+
+    def load_jma_amedas(prec_no,block_no,year='2020',month='1',day='1'):
+  r'''アメダスの値を返す関数
+  参考:https://met-learner.hatenablog.jp/entry/2019/12/15/123637
+  '''
+  # import time
+  from datetime import datetime
+  import numpy as np
+  import urllib.request
+  # とりあえずpandasでかく 
+  # インストールの時にコンフリクトを起こす可能性があるので出来るだけ外部ライブラリは増やしたくない
+  import pandas as pd
+
+  # 地点によって形式が異なる
+  kind='a' #赤丸
+  _url = f'http://www.data.jma.go.jp/obd/stats/etrn/view/10min_{kind}1.php?prec_no={prec_no}&block_no={block_no}&year={year}&month={month}&day={day}&view=p1'
+  try:
+    _tables = pd.io.html.read_html(_url)
+    _flag=True
+  except AttributeError:
+    _flag=False
+  except ValueError:
+    _flag=False
+
+  if _flag==False:
+    kind='s' #赤二重丸
+    _url = f'http://www.data.jma.go.jp/obd/stats/etrn/view/10min_{kind}1.php?prec_no={prec_no}&block_no={block_no}&year={year}&month={month}&day={day}&view=p1'
+    _tables = pd.io.html.read_html(_url)
+    try:
+      _tables = pd.io.html.read_html(_url)
+      _flag=True
+    except AttributeError:
+      print("地点エラー")
+    except ValueError:
+      print("地点エラー")
+
+
+
+  ##### スクレイピング #####
+  _tables = pd.io.html.read_html(_url)
+  _df = _tables[0].iloc[:,1:] 
+  _df = _df.reset_index(drop = True)
+
+  ##### 列名を指定 #####
+  if kind=='s':
+    _df.columns = ['PRESSURE','SLP','PRC', 'TEMP', 'RH','WS_MEAN', 'WD_MEAN', 'WS_GUST', 'WD_GUST', 'SUN']
+  else :
+    _df.columns = ['PRC', 'TEMP', 'RH','WS_MEAN', 'WD_MEAN', 'WS_GUST', 'WD_GUST', 'SUN']
+
+  ##### 欠測値の処理 #####
+  _df = _df.replace('///', None) # --- '///' を欠測値として処理
+  _df = _df.replace('×', None) # --- '×' を欠測値として処理
+  _df = _df.replace('\s\)', '', regex = True) # --- ')' が含まれる値を正常値として処理
+  _df = _df.replace('.*\s\]', None, regex = True) # --- ']' が含まれる値を欠測値として処理
+  _df = _df.replace('#', None) # --- '#'が含まれる値を欠測値として処理
+  _df = _df.replace('--', None) # --- '--'が含まれる値を欠測値として処理
+
+  ##### 風向を北0°で時計回りの表記に変更 #####
+  _df.loc[:,['WD_MEAN', 'WD_GUST']] = _df.loc[:,['WD_MEAN', 'WD_GUST']].replace('北北東', '22.5')
+  _df.loc[:,['WD_MEAN', 'WD_GUST']] = _df.loc[:,['WD_MEAN', 'WD_GUST']].replace('東北東', '67.5')
+  _df.loc[:,['WD_MEAN', 'WD_GUST']] = _df.loc[:,['WD_MEAN', 'WD_GUST']].replace('東南東', '112.5')
+  _df.loc[:,['WD_MEAN', 'WD_GUST']] = _df.loc[:,['WD_MEAN', 'WD_GUST']].replace('南南東', '157.5')
+  _df.loc[:,['WD_MEAN', 'WD_GUST']] = _df.loc[:,['WD_MEAN', 'WD_GUST']].replace('南南西', '202.5')
+  _df.loc[:,['WD_MEAN', 'WD_GUST']] = _df.loc[:,['WD_MEAN', 'WD_GUST']].replace('西南西', '247.5')
+  _df.loc[:,['WD_MEAN', 'WD_GUST']] = _df.loc[:,['WD_MEAN', 'WD_GUST']].replace('西北西', '292.5')
+  _df.loc[:,['WD_MEAN', 'WD_GUST']] = _df.loc[:,['WD_MEAN', 'WD_GUST']].replace('北北西', '337.5')
+  _df.loc[:,['WD_MEAN', 'WD_GUST']] = _df.loc[:,['WD_MEAN', 'WD_GUST']].replace('北東', '45.0')
+  _df.loc[:,['WD_MEAN', 'WD_GUST']] = _df.loc[:,['WD_MEAN', 'WD_GUST']].replace('南東', '135.0')
+  _df.loc[:,['WD_MEAN', 'WD_GUST']] = _df.loc[:,['WD_MEAN', 'WD_GUST']].replace('南西', '225.0')
+  _df.loc[:,['WD_MEAN', 'WD_GUST']] = _df.loc[:,['WD_MEAN', 'WD_GUST']].replace('北西', '315.0')
+  _df.loc[:,['WD_MEAN', 'WD_GUST']] = _df.loc[:,['WD_MEAN', 'WD_GUST']].replace('北', '360.0')
+  _df.loc[:,['WD_MEAN', 'WD_GUST']] = _df.loc[:,['WD_MEAN', 'WD_GUST']].replace('東', '90.0')
+  _df.loc[:,['WD_MEAN', 'WD_GUST']] = _df.loc[:,['WD_MEAN', 'WD_GUST']].replace('南', '180.0')
+  _df.loc[:,['WD_MEAN', 'WD_GUST']] = _df.loc[:,['WD_MEAN', 'WD_GUST']].replace('西', '270.0')
+  _df.loc[:,['WD_MEAN', 'WD_GUST']] = _df.loc[:,['WD_MEAN', 'WD_GUST']].replace('静穏', '-888.8')
+
+  ##### 時刻列を追加 #####
+  # _df['DATE'] = pd.date_range(datetime(year, month, day, 0, 10, 0), periods = len(_df), freq = '10T')
+  _df['DATE'] = pd.date_range(datetime(int(year), int(month), int(day), 0, 10, 0), periods = len(_df), freq = '10T')
+
+  ##### 年/月/日/時/分/秒 の各列を追加 #####
+  _df['YEAR'] = _df['DATE'].dt.year
+  _df['MONTH'] = _df['DATE'].dt.month
+  _df['DAY'] = _df['DATE'].dt.day
+  _df['HOUR'] = _df['DATE'].dt.hour
+  _df['MINUTE'] = _df['DATE'].dt.minute
+  _df['SECOND'] = _df['DATE'].dt.second
+  return _df
