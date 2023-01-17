@@ -62,22 +62,26 @@ def get_jmara_lon():
   return _func()
 
 
+
 def load_jmara(year='2005',month='10',day='21',hour='00',mimute='00'):
   r'''全国合成レーダーGPVを返す関数
   '''
-  import time
-  import requests
+  import urllib.request
+  import tempfile
   import os 
   _url = f"http://database.rish.kyoto-u.ac.jp/arch/jmadata/data/jma-radar/synthetic/original/{year}/{month}/{day}/Z__C_RJTD_{year}{month}{day}{hour}{mimute}00_RDR_JMAGPV__grib2.tar"
-  _filename=str(time.time())+".cache"
-  if requests.post(_url).status_code!=requests.codes.ok:
-    os.remove(_filename)
-    raise 
-  else:
-    _urlData = requests.get(_url).content
-    with open(_filename ,mode='wb') as f:
-      f.write(_urlData)
-    _tar_contentname=f"Z__C_RJTD_{year}{month}{day}{hour}{mimute}00_RDR_JMAGPV_Ggis1km_Prr10lv_ANAL_grib2.bin"
-    _data=load_jmara_grib2(_filename, tar_flag=True, tar_contentname=_tar_contentname)
-    os.remove(_filename)
-    return _data
+  _fd, _tmpfile = tempfile.mkstemp()
+  _req = urllib.request.Request(_url)
+  try:
+    with urllib.request.urlopen(_req) as _res:
+      _urlData = _res.read()
+      with open(_tmpfile ,mode='wb') as f:
+        f.write(_urlData)
+      _tar_contentname=f"Z__C_RJTD_{year}{month}{day}{hour}{mimute}00_RDR_JMAGPV_Ggis1km_Prr10lv_ANAL_grib2.bin"
+      _data=load_jmara_grib2(_tmpfile, tar_flag=True, tar_contentname=_tar_contentname)
+      os.remove(_tmpfile)
+      return _data
+  except urllib.error.HTTPError as err:
+    print(err.code)
+  except urllib.error.URLError as err:
+    print(err.reason)
